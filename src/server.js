@@ -2,8 +2,6 @@ const ENV = require('./envServer')
 const express = require('express')
 const bodyParser = require('body-parser')
 
-const request = require('request')
-
 const axios = require('axios')
 
 const getLiveDemoPageHandler = require('./handlers/getLiveDemoPage')
@@ -157,27 +155,44 @@ app.get('/livedemos/:storyId', [setupMongo, setupCache], getLiveDemoPageHandler)
 app.get('/livedemos/:storyId/links/:linkId', [setupMongo, setupCache], getLiveDemoWithLinkPageHandler)
 
 app.use('*', function(req, res) {
-  let url = ENV.SERVER_URL + req.originalUrl;
+  const url = ENV.SERVER_URL + req.originalUrl
 
   res.set('Origin-Agent-Cluster', '?0')
 
-  req.pipe(request(url)).pipe(res);
-});
-
+  axios({
+    method: req.method,
+    url,
+    data: req,
+    responseType: 'stream',
+    headers: {
+      ...req.headers,
+      host: new URL(ENV.SERVER_URL).host
+    }
+  })
+    .then(proxyRes => {
+      res.set(proxyRes.headers)
+      res.status(proxyRes.status)
+      proxyRes.data.pipe(res)
+    })
+    .catch(err => {
+      if (err.response) {
+        res.set(err.response.headers)
+        res.status(err.response.status)
+        err.response.data.pipe(res)
+      } else {
+        res.status(502).send('Bad Gateway')
+      }
+    })
+})
 
 const http = require('http').Server(app)
 
 async function setup() {
 
   http.listen(3055, () => {
-    // require('../configEnv')
     console.log('App-proxy server started')
   })
 }
 
 setup()
-
-// const io = require('socket.io')(http, {
-//   maxHttpBufferSize: 1e8 * 100
-// })
 

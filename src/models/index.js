@@ -73,9 +73,6 @@ const LinkSchema= require('./Link')
 // const ActivitySchema = require('./Activity')
 // const GroupActivitySchema = require('./GroupActivity')
 
-const mongoosePaginate = require('mongoose-paginate')
-const mongooseAggregatePaginate = require('mongoose-aggregate-paginate-v2')
-
 /**
  * Returns 'conn' - Mongoose Connection Instance
  *
@@ -92,12 +89,11 @@ module.exports.connect = () => {
     // disconnected from MongoDB and send them when it reconnects.
     // With serverless, better to fail fast if not connected.
     bufferCommands: false, // Disable mongoose buffering
-    bufferMaxEntries: 0, // and MongoDB driver buffering
     useFindAndModify: false
   })
 
 
-  return conn
+  return Promise.resolve(conn)
 
 }
 
@@ -115,22 +111,6 @@ module.exports.setupDB = () => {
  * @param conn
  */
 module.exports.initModels = (conn) => {
-// this will add paginate function.
-  mongoosePaginate.paginate.options = {
-    limit: 10,
-    lean: true
-  }
-
-  // MessageSchema.plugin(mongoosePaginate)
-  // InstantMessageSchema.plugin(mongoosePaginate)
-  // FileMessageSchema.plugin(mongoosePaginate)
-  // UserReportSchema.plugin(mongoosePaginate)
-  //
-  // CryptoWordSchema.plugin(mongooseAggregatePaginate)
-  // IMCryptoWordSchema.plugin(mongooseAggregatePaginate)
-  //
-  // ConversationSchema.plugin(mongooseAggregatePaginate)
-
   conn.model('Card', CardSchema)
   conn.model('User', UserSchema)
 

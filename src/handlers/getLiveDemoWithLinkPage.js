@@ -4,8 +4,6 @@ const ResponseCodes = require('../constants/ResponseCodes')
 const ScreenTypes = require('../constants/ScreenTypes')
 const ENV = require('../envServer')
 const axios = require('axios')
-// const sanitizeHtml = require('sanitize-html')
-
 
 const handler = function (req, res) {
     let {Models, conn} = req.mongo

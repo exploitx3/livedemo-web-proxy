@@ -9,20 +9,12 @@
   "author": "George Apostolov",
   "license": "MIT",
   "dependencies": {
-    "@mux/mux-node": "^6.3.0",
-    "aws-sdk": "^2.1162.0",
-    "axios": "0.18.1",
+    "axios": "^1.13.6",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.19.1",
     "express": "^4.17.2",
-    "moment": "^2.29.3",
-    "mongoose": "5.9.29",
-    "mongoose-aggregate-paginate-v2": "^1.0.42",
+    "mongoose": "^6.13.9",
     "mongoose-long": "0.2.1",
-    "mongoose-paginate": "5.0.3",
-    "monq": "git+https://github.com/exploitx3/monq.git#master",
-    "request": "^2.88.2",
-    "short-uuid": "^4.2.2",
-    "stream-json-stringify": "^1.0.0"
+    "short-uuid": "^4.2.2"
   }
 }
