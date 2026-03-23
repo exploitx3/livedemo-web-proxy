@@ -1,0 +1,102 @@
+image: node:14
+
+cache:
+  paths:
+    - node_modules/
+
+stages:
+  - build
+  - deploy
+
+build-app-proxy-image:
+  image: docker:18.09.9
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  stage: build
+  only:
+    - develop
+  script:
+    - docker login registry.gitlab.com --username $CI_MINE_USERNAME --password $CI_MINE_PASSWORD
+    - docker build -f ./tools/docker/Dockerfile -t registry.gitlab.com/georgi.apostolov/app-proxy:latest .
+    - docker tag registry.gitlab.com/georgi.apostolov/app-proxy:latest registry.gitlab.com/georgi.apostolov/app-proxy:$CI_COMMIT_SHA
+    - docker push registry.gitlab.com/georgi.apostolov/app-proxy:$CI_COMMIT_SHA
+    - docker push registry.gitlab.com/georgi.apostolov/app-proxy:latest
+
+
+#build-agenda-image:
+#  image: docker:18.09.9
+#  services:
+#    - docker:18.09.9-dind
+#  variables:
+#    DOCKER_HOST: tcp://docker:2376
+#    DOCKER_TLS_CERTDIR: "/certs"
+#  stage: build
+#  when: manual
+#  only:
+#    - develop
+#  script:
+#    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+#    - docker build -f ./tools/docker/agenda/agenda-dockerfile -t registry.gitlab.com/georgi.apostolov/telltrail-server:agenda-latest .
+#    - docker tag registry.gitlab.com/georgi.apostolov/telltrail-server:agenda-latest registry.gitlab.com/georgi.apostolov/telltrail-server:agenda-$CI_COMMIT_SHA
+#    - docker push registry.gitlab.com/georgi.apostolov/telltrail-server:agenda-$CI_COMMIT_SHA
+#    - docker push registry.gitlab.com/georgi.apostolov/telltrail-server:agenda-latest
+#
+
+#build-saga-image:
+#  image: docker:18.09.9
+#  services:
+#    - docker:18.09.9-dind
+#  variables:
+#    DOCKER_HOST: tcp://docker:2376
+#    DOCKER_TLS_CERTDIR: "/certs"
+#  stage: build
+#  when: manual
+#  only:
+#    - develop
+#  script:
+#    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+#    - docker build -f ./tools/docker/saga/saga-dockerfile -t registry.gitlab.com/georgi.apostolov/telltrail-server:saga-latest .
+#    - docker tag registry.gitlab.com/georgi.apostolov/telltrail-server:saga-latest registry.gitlab.com/georgi.apostolov/telltrail-server:saga-$CI_COMMIT_SHA
+#    - docker push registry.gitlab.com/georgi.apostolov/telltrail-server:saga-$CI_COMMIT_SHA
+#    - docker push registry.gitlab.com/georgi.apostolov/telltrail-server:saga-latest
+#
+
+build:
+  stage: build
+  when: manual
+  only:
+    - develop
+  script:
+    - npm install
+#
+#deploy-staging:
+#  stage: deploy
+#  when: manual
+#  environment: staging
+#  only:
+#    - develop
+#  script:
+#    - npm run deploy-staging
+#
+#deploy-prod:
+#  stage: deploy
+#  when: manual
+#  environment: prod
+#  only:
+#    - develop
+#  script:
+#    - export
+#    - npm run deploy-prod
+#
+#deploy:
+#  stage: deploy
+#  only:
+#    - develop
+#  script:
+#    - du
+#    - env
+#    - sshpass -p $SERVER_PASSWORD_PLAIN rsync -e "ssh -oStrictHostKeyChecking=no" -zvh dist/bundle.js ggmtesting@162.144.154.99:/home/ggmtesting/devsite16/wp-content/plugins/volume-calculator/client/
+#    - sshpass -p $SERVER_PASSWORD_PLAIN rsync -e "ssh -oStrictHostKeyChecking=no" -zvh dist/bundle.css ggmtesting@162.144.154.99:/home/ggmtesting/devsite16/wp-content/plugins/volume-calculator/client/

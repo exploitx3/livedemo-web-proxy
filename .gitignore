@@ -1,0 +1,31 @@
+# package directories
+./node_modules
+node_modules
+jspm_packages
+
+# Serverless directories
+.serverless
+.serverless/
+
+# Webstorm
+.idea
+.idea/
+
+#tools
+#tools/
+build
+build/
+
+.webpack/
+
+# ignore prod config
+
+prod.env
+prod-local.env
+staging.env
+./prod.env
+./staging.env
+
+src/injectScript/injectScript.bundle.js
+./src/injectScript/injectScript.bundle.js
+*.env
