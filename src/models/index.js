@@ -84,16 +84,15 @@ module.exports.connect = () => {
   // function calls thanks to `callbackWaitsForEmptyEventLoop`.
   // This means your Lambda function doesn't have to go through the
   // potentially expensive process of connecting to MongoDB every time.
-  let conn = mongoose.createConnection(uri, {
+  //
+  // .asPromise() resolves only once the TCP connection is fully open,
+  // which is required when bufferCommands = false (no query queuing).
+  return mongoose.createConnection(uri, {
     // Buffering means mongoose will queue up operations if it gets
     // disconnected from MongoDB and send them when it reconnects.
     // With serverless, better to fail fast if not connected.
     bufferCommands: false, // Disable mongoose buffering
-    useFindAndModify: false
-  })
-
-
-  return Promise.resolve(conn)
+  }).asPromise()
 
 }
 
