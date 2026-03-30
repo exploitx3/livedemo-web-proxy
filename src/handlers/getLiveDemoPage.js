@@ -116,12 +116,15 @@ const handler = function (req, res) {
     <meta property="og:image:alt" content="${safeImageAlt}"/>
     <meta property="og:image:type" content="image/png"/>
     <meta property="og:updated_time" content="${storyDoc.updatedAt.toISOString()}"/>
-    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:card" content="player"/>
     <meta name="twitter:site" content="@Live_Demo_Live"/>
-    <meta name="twitter:title" content="${safeTitle} | LiveDemo"/>
-    <meta name="twitter:description" content="${safeDescription}"/>
+    <meta name="twitter:title" content="${safeTitle}"/>
+    <meta name="twitter:description" content=""/>
+    <meta name="twitter:image:alt" content=""/>
     <meta name="twitter:image" content="${thumbnailImage}"/>
-    <meta name="twitter:image:alt" content="${safeImageAlt}"/>
+    <meta name="twitter:player" content="${ENV.STORIES_API}/workspaces/${storyDoc.workspaceId}/stories/${storyDoc._id}/preview?step=1"/>
+    <meta name="twitter:player:width" content="480"/>
+    <meta name="twitter:player:height" content="242"/>
     <script type="application/ld+json">${jsonLd}</script>`
 
       let regexPattern = /([\w\W]+?)\<head\>([\w\W]+)/ig
