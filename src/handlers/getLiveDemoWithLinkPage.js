@@ -5,6 +5,12 @@ const ScreenTypes = require('../constants/ScreenTypes')
 const ENV = require('../envServer')
 const axios = require('axios')
 
+const escapeHtml = (str) => String(str || '')
+  .replace(/&/g, '&amp;')
+  .replace(/"/g, '&quot;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+
 const handler = function (req, res) {
     let {Models, conn} = req.mongo
 
@@ -13,11 +19,8 @@ const handler = function (req, res) {
     let storyId = req.params.storyId
     let linkId = req.params.linkId
 
-
     return Promise.resolve()
         .then(async () => {
-
-
             return Models.Story.findOne({
                 _id: storyId
             })
@@ -58,54 +61,99 @@ const handler = function (req, res) {
             }
 
         })
-        .then(async (storyDoc) => {
-            let firstScreen = storyDoc.screens && storyDoc.screens.length && storyDoc.screens[0]
+        .then((storyDoc) => {
+            const firstScreen = storyDoc.screens && storyDoc.screens.length && storyDoc.screens[0]
 
-            let thumbnailImage = firstScreen.type === ScreenTypes.SCREEN_VIDEO ? `https://image.mux.com/${firstScreen.asset.playback_ids[0].id}/thumbnail.png` : firstScreen.imageUrl
+            const thumbnailImage = firstScreen.type === ScreenTypes.SCREEN_VIDEO
+                ? `https://image.mux.com/${firstScreen.asset.playback_ids[0].id}/thumbnail.png`
+                : firstScreen.imageUrl
 
-            let headString = '\n<link rel="shortcut icon" type="image/png" href="https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png"/>\n' +
-                '    <link rel="apple-touch-icon" href="https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png"/>\n' +
-                '    <meta name="msapplication-TileImage" content="https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png"/>\n' +
-                '    <link rel="alternate" type="application/json+oembed"\n' +
-                `          href="${ENV.STORIES_API}/oembed?url=${ENV.STORIES_API}/workspaces/${storyDoc.workspaceId}/stories/${storyDoc._id}/preview"\n` +
-                `          title="${storyDoc.name}"/>\n` +
-                '    <meta name="generator"\n' +
-                '          content="Powered by LiveDemo -- Demo the future. Visit us at https://livedemo.ai."/>\n' +
-                '    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"/>\n' +
-                '    <meta name="robots" content="max-image-preview:large"/>\n' +
-                '    <meta name="author" content="livedemo.ai"/>\n' +
-                '    <meta name="copyright" content="LiveDemo"/>\n' +
-                '    <meta name="twitter:card" content="player"/>\n' +
-                '    <meta name="twitter:site" content="@Live_Demo_Live"/>\n' +
-                `    <meta name="twitter:title" content="${storyDoc.name}"/>\n` +
-                '    <meta name="twitter:description" content=""/>\n' +
-                '    <meta name="twitter:image:alt" content=""/>\n' +
-                '    <meta name="twitter:image"\n' +
-                `          content="${thumbnailImage}"/>\n` +
-                `    <meta name="twitter:player" content="${ENV.STORIES_API}/workspaces/${storyDoc.workspaceId}/stories/${storyDoc._id}/preview?step=1"/>\n` +
-                '    <meta name="twitter:player:width" content="480"/>\n' +
-                '    <meta name="twitter:player:height" content="242"/>\n' +
-                '    <meta property="og:locale" content="en_US"/>\n' +
-                '    <meta property="og:site_name" content="LiveDemo"/>\n' +
-                `    <meta name="title" property="og:title" content="${storyDoc.name}"/>\n` +
-                '    <meta name="description" property="og:description" content=""/>\n' +
-                '    <meta name="image" property="og:image"\n' +
-                `          content="${thumbnailImage}"/>\n` +
-                `    <meta property="og:url" content="${ENV.STORIES_API}/workspaces/${storyDoc.workspaceId}/stories/${storyDoc._id}/preview?step=1"/>\n` +
-                '    <meta property="og:image:width" content="480"/>\n' +
-                '    <meta property="og:image:height" content="242"/>\n' +
-                '    <meta property="og:type" content="article"/>\n' +
-                `    <meta property="article:modified_time" content="${storyDoc.updatedAt.toISOString()}"/>\n`
+            // Each link gets its own canonical URL since variable substitutions produce unique content
+            const canonicalUrl = linkId
+                ? `${ENV.STORIES_API}/workspaces/${storyDoc.workspaceId}/stories/${storyDoc._id}/links/${linkId}/preview`
+                : `${ENV.STORIES_API}/workspaces/${storyDoc.workspaceId}/stories/${storyDoc._id}/preview`
 
-            // htmlString += '<link href="https://fonts.cdnfonts.com/css/gagalin" rel="stylesheet">'
+            const rawTitle = storyDoc.name || 'Interactive Demo'
+            const rawDescription = `Explore an interactive demo of ${rawTitle}. Built with LiveDemo — the platform for creating and sharing stunning product demos.`
+            const rawImageAlt = `${rawTitle} — interactive product demo`
 
-            // htmlString += '<script src="https://cdn.lr-in-prod.com/LogRocket.min.js" crossorigin="anonymous"></script>\n' +
-            //   '<script>window.LogRocket && window.LogRocket.init(\'dotxvj/livedemo\', {  mergeIframes: true });</script>\n'
+            const safeTitle = escapeHtml(rawTitle)
+            const safeDescription = escapeHtml(rawDescription)
+            const safeImageAlt = escapeHtml(rawImageAlt)
+
+            const imageWidth = firstScreen.width || 1200
+            const imageHeight = firstScreen.height || 630
+
+            const jsonLd = JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'WebPage',
+                name: rawTitle,
+                description: rawDescription,
+                url: canonicalUrl,
+                image: {
+                    '@type': 'ImageObject',
+                    url: thumbnailImage,
+                    width: imageWidth,
+                    height: imageHeight,
+                },
+                dateModified: storyDoc.updatedAt.toISOString(),
+                datePublished: storyDoc.createdAt.toISOString(),
+                publisher: {
+                    '@type': 'Organization',
+                    name: 'LiveDemo',
+                    url: 'https://livedemo.ai',
+                    logo: {
+                        '@type': 'ImageObject',
+                        url: 'https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png',
+                    },
+                },
+            })
+
+            const headString = `
+    <link rel="shortcut icon" type="image/png" href="https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png"/>
+    <link rel="apple-touch-icon" href="https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png"/>
+    <meta name="msapplication-TileImage" content="https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png"/>
+    <link rel="canonical" href="${canonicalUrl}"/>
+    <link rel="alternate" type="application/json+oembed"
+          href="${ENV.STORIES_API}/oembed?url=${encodeURIComponent(canonicalUrl)}"
+          title="${safeTitle}"/>
+    <meta name="generator" content="Powered by LiveDemo — Demo the future. Visit us at https://livedemo.ai."/>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="robots" content="index, follow, max-image-preview:large"/>
+    <meta name="author" content="livedemo.ai"/>
+    <meta name="copyright" content="LiveDemo"/>
+    <title>${safeTitle} | LiveDemo</title>
+    <meta name="title" content="${safeTitle} | LiveDemo"/>
+    <meta name="description" content="${safeDescription}"/>
+    <meta property="og:locale" content="en_US"/>
+    <meta property="og:site_name" content="LiveDemo"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:title" content="${safeTitle} | LiveDemo"/>
+    <meta property="og:description" content="${safeDescription}"/>
+    <meta property="og:url" content="${canonicalUrl}"/>
+    <meta property="og:image" content="${thumbnailImage}"/>
+    <meta property="og:image:secure_url" content="${thumbnailImage}"/>
+    <meta property="og:image:width" content="${imageWidth}"/>
+    <meta property="og:image:height" content="${imageHeight}"/>
+    <meta property="og:image:alt" content="${safeImageAlt}"/>
+    <meta property="og:image:type" content="image/png"/>
+    <meta property="og:updated_time" content="${storyDoc.updatedAt.toISOString()}"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:site" content="@Live_Demo_Live"/>
+    <meta name="twitter:title" content="${safeTitle} | LiveDemo"/>
+    <meta name="twitter:description" content="${safeDescription}"/>
+    <meta name="twitter:image" content="${thumbnailImage}"/>
+    <meta name="twitter:image:alt" content="${safeImageAlt}"/>
+    <script type="application/ld+json">${jsonLd}</script>`
 
             let regexPattern = /([\w\W]+?)\<head\>([\w\W]+)/ig
-            let match = regexPattern.exec(cachedHtmlPage);
+            let match = regexPattern.exec(cachedHtmlPage)
 
-            let fullHtmlString = match[1] + '<head>\n' + headString + "\n" + match[2]
+            // Strip any existing <title> from the base template to avoid duplicates
+            let baseHeadContent = match[2].replace(/<title>[^<]*<\/title>/gi, '')
+
+            let fullHtmlString = match[1] + '<head>\n' + headString + '\n' + baseHeadContent
 
             return fullHtmlString
         })
@@ -117,9 +165,8 @@ const handler = function (req, res) {
                     'Origin-Agent-Cluster': '?0',
                     'Access-Control-Max-Age': 600,
                     'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'ClientId,Authorization,Content-Type,Accept', // Required for CORS support to work
-                    // Required for CORS support to work
-                    'Access-Control-Allow-Credentials': true, // Required for cookies, authorization headers with HTTPS
+                    'Access-Control-Allow-Headers': 'ClientId,Authorization,Content-Type,Accept',
+                    'Access-Control-Allow-Credentials': true,
                 }
             }
 
@@ -136,16 +183,14 @@ const handler = function (req, res) {
                 resultResponse = error.resultResponse
             } else {
 
-
                 resultResponse = {
                     statusCode: ResponseCodes['200_OK'],
                     headers: {
                         'Origin-Agent-Cluster': '?0',
                         'Access-Control-Max-Age': 600,
                         'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'ClientId,Authorization,Content-Type,Accept', // Required for CORS support to work
-                        // Required for CORS support to work
-                        'Access-Control-Allow-Credentials': true, // Required for cookies, authorization headers with HTTPS
+                        'Access-Control-Allow-Headers': 'ClientId,Authorization,Content-Type,Accept',
+                        'Access-Control-Allow-Credentials': true,
                     },
                     body: ''
                 }
