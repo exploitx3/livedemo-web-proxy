@@ -34,6 +34,7 @@ const ScriptSchema = require('./Script')
 // const SubscriberSchema = require('./Subscriber')
 const ContentSchema = require('./Content')
 const StorySchema = require('./Story')
+const AiDemoAgentSchema = require('./AiDemoAgent')
 const ScreenSchema = require('./Screen')
 const Screen_PageSchema = require('./Screen_Page')
 const Screen_ScreenshotSchema = require('./Screen_Screenshot')
@@ -160,6 +161,7 @@ module.exports.initModels = (conn) => {
   conn.model('Request', RequestSchema)
 
   conn.model('Story', StorySchema)
+  conn.model('AiDemoAgent', AiDemoAgentSchema)
   conn.model('Screen', ScreenSchema)
   conn.model('Link', LinkSchema)
 
@@ -211,6 +213,7 @@ module.exports.getModels = (conn) => {
     ScreenPageTransition: conn.model(ScreenTransitionTypes.ECLICK),
     Content: conn.model('Content'),
     Story: conn.model('Story'),
+    AiDemoAgent: conn.model('AiDemoAgent'),
     Screen: conn.model('Screen'),
     Screen_Video: conn.model(ScreenTypes.SCREEN_VIDEO),
     Screen_Screenshot: conn.model(ScreenTypes.SCREEN_SCREENSHOT),

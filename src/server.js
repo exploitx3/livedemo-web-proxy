@@ -6,6 +6,7 @@ const axios = require('axios')
 
 const getLiveDemoPageHandler = require('./handlers/getLiveDemoPage')
 const getLiveDemoWithLinkPageHandler = require('./handlers/getLiveDemoWithLinkPage')
+const getAgentPageHandler = require('./handlers/getAgentPage')
 
 
 const { setupDB, getModels } = require('./models')
@@ -153,6 +154,7 @@ function corsMiddleware(req, res, next) {
 
 app.get('/livedemos/:storyId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDemoPageHandler)
 app.get('/livedemos/:storyId([a-f0-9]{24})/links/:linkId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDemoWithLinkPageHandler)
+app.get('/agents/:agentId([a-f0-9]{24})', [setupMongo, setupCache], getAgentPageHandler)
 
 app.use('*', function(req, res) {
   const url = ENV.SERVER_URL + req.originalUrl
