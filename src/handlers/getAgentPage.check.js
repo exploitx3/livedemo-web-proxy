@@ -13,14 +13,17 @@ async function run(agent, story = null) {
   }
   let body = ''
   const res = { set() {}, status() {}, send(html) { body = html } }
-  await handler({ mongo: { Models }, appHtmlCache: { html: SPA }, params: { agentId: 'a'.repeat(24) } }, res)
+  await handler({ mongo: { Models }, appHtmlCache: { html: SPA }, params: { agentId: 'a'.repeat(24) }, get: () => 'app.livedemo.ai' }, res)
   return body
 }
 
 ;(async () => {
   const agent = { _id: 'a'.repeat(24), name: 'George "<b>"', avatarUrl: 'https://x/avatar.webp', defaultDemoId: 'd1' }
 
-  const withDemo = await run(agent, { screens: [{ type: 'Screen_Screenshot', imageUrl: 'https://x/shot.png' }] })
+  const withDemo = await run(agent, { screens: [{ type: 'Screen_Screenshot', imageUrl: 'https://x/shot.png', width: 1600, height: 900 }] })
+  assert.match(withDemo, /og:url" content="https:\/\/app\.livedemo\.ai\/agents\/a{24}"/, 'LinkedIn card links to the app page')
+  assert.match(withDemo, /rel="canonical" href="https:\/\/app\.livedemo\.ai\/agents\/a{24}"/)
+  assert.match(withDemo, /og:image:width" content="1600"/)
   assert.match(withDemo, /<meta name="twitter:card" content="player"\/>/)
   assert.match(withDemo, /twitter:player" content="[^"]+\/agents\/a{24}\/player"/)
   assert.match(withDemo, /og:image" content="https:\/\/x\/shot.png"/, 'demo screenshot preferred over .webp avatar')
@@ -30,8 +33,11 @@ async function run(agent, story = null) {
   assert.strictEqual((withDemo.match(/<title>/g) || []).length, 1, 'SPA <title> replaced, not duplicated')
   assert.ok(withDemo.includes('<script src="/main.js"></script>'), 'SPA head kept')
 
-  const noDemo = await run({ ...agent, defaultDemoId: null })
-  assert.match(noDemo, /og:image" content="https:\/\/x\/avatar.webp"/, 'falls back to avatar')
+  const noDemo = await run({ ...agent, avatarUrl: 'https://x/avatar.png', defaultDemoId: null })
+  assert.match(noDemo, /og:image" content="https:\/\/x\/avatar.png"/, 'falls back to avatar')
+
+  const webpOnly = await run({ ...agent, defaultDemoId: null })
+  assert.match(webpOnly, /og:image" content="[^"]+logo-round\.png"/, '.webp avatar skipped (LinkedIn cannot render it)')
 
   const draft = await run(null)
   assert.strictEqual(draft, SPA, 'draft/missing agent gets the plain SPA')

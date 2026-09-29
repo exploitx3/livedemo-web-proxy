@@ -26,12 +26,18 @@ function screenThumbnail(screen) {
 }
 
 // Share-card <head> tags for a published agent (X player card + OG + oEmbed).
-// Demo screenshot first: PNG/JPG unfurls everywhere, the stock avatar is .webp.
-function buildAgentHead(agent, firstScreen) {
+// og:url/canonical must be the app page: LinkedIn re-scrapes og:url and links the card to it.
+// Demo screenshot first: LinkedIn doesn't render .webp (the stock avatars are .webp).
+function buildAgentHead(agent, firstScreen, pageUrl) {
   const id = String(agent._id)
   const playerUrl = `${ENV.STORIES_API}/agents/${id}/player`
   const oEmbedTarget = `${ENV.STORIES_API}/agents/${id}`
-  const image = screenThumbnail(firstScreen) || agent.avatarUrl || 'https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png'
+  const avatar = agent.avatarUrl && !/\.webp(\?|$)/i.test(agent.avatarUrl) ? agent.avatarUrl : ''
+  const shot = screenThumbnail(firstScreen)
+  const image = shot || avatar || 'https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png'
+  const imageSize = shot && firstScreen.width && firstScreen.height
+    ? `\n    <meta property="og:image:width" content="${firstScreen.width}"/>\n    <meta property="og:image:height" content="${firstScreen.height}"/>`
+    : ''
 
   const title = escapeHtml(agent.name || 'AI Demo Agent')
   const description = escapeHtml(`Chat with ${agent.name || 'our AI guide'} and explore the product in an interactive demo. Built with LiveDemo.`)
@@ -39,7 +45,7 @@ function buildAgentHead(agent, firstScreen) {
 
   return `
     <link rel="shortcut icon" type="image/png" href="https://livedemo-cdn.s3.amazonaws.com/static/logo-round.png"/>
-    <link rel="canonical" href="${playerUrl}"/>
+    <link rel="canonical" href="${escapeHtml(pageUrl)}"/>
     <link rel="alternate" type="application/json+oembed"
           href="${ENV.STORIES_API}/oembed?url=${encodeURIComponent(oEmbedTarget)}"
           title="${title}"/>
@@ -53,9 +59,9 @@ function buildAgentHead(agent, firstScreen) {
     <meta property="og:type" content="website"/>
     <meta property="og:title" content="${title} | LiveDemo"/>
     <meta property="og:description" content="${description}"/>
-    <meta property="og:url" content="${playerUrl}"/>
+    <meta property="og:url" content="${escapeHtml(pageUrl)}"/>
     <meta property="og:image" content="${safeImage}"/>
-    <meta property="og:image:secure_url" content="${safeImage}"/>
+    <meta property="og:image:secure_url" content="${safeImage}"/>${imageSize}
     <meta property="og:image:alt" content="${title} — AI demo agent"/>
     <meta name="twitter:card" content="player"/>
     <meta name="twitter:site" content="@g_apostolov"/>
@@ -87,11 +93,12 @@ const handler = async function (req, res) {
       let firstScreen = null
       if (agent.defaultDemoId) {
         const story = await Models.Story.findOne({ _id: agent.defaultDemoId })
-          .populate({ path: 'screens', select: '_id type imageUrl index asset', options: { sort: { index: 1 } } })
+          .populate({ path: 'screens', select: '_id type imageUrl index asset width height', options: { sort: { index: 1 } } })
           .lean()
         firstScreen = story && story.screens && story.screens[0]
       }
-      html = injectHead(cachedHtmlPage, buildAgentHead(agent, firstScreen))
+      const pageUrl = `https://${req.get('host')}/agents/${agent._id}`
+      html = injectHead(cachedHtmlPage, buildAgentHead(agent, firstScreen, pageUrl))
     }
   } catch (error) {
     console.log(error)
