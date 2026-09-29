@@ -97,7 +97,8 @@ const handler = async function (req, res) {
           .lean()
         firstScreen = story && story.screens && story.screens[0]
       }
-      const pageUrl = `https://${req.get('host')}/agents/${agent._id}`
+      // Not req host: Cloudflare forwards app.livedemo.ai to the origin as app-proxy.livedemo.ai
+      const pageUrl = `${ENV.APP_URL}/agents/${agent._id}`
       html = injectHead(cachedHtmlPage, buildAgentHead(agent, firstScreen, pageUrl))
     }
   } catch (error) {

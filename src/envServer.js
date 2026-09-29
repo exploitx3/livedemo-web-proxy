@@ -4,5 +4,6 @@ module.exports = {
   'SERVER_URL': process.env.SERVER_URL || 'http://localhost:5000',
   'DB_URI': process.env.DB_URI || 'mongodb://localhost:27017/livedemo_app',
   'STORIES_API': process.env.STORIES_API || 'http://localhost:3005',
+  'APP_URL': process.env.APP_URL || 'https://app.livedemo.ai',
 }
 

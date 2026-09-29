@@ -13,7 +13,7 @@ async function run(agent, story = null) {
   }
   let body = ''
   const res = { set() {}, status() {}, send(html) { body = html } }
-  await handler({ mongo: { Models }, appHtmlCache: { html: SPA }, params: { agentId: 'a'.repeat(24) }, get: () => 'app.livedemo.ai' }, res)
+  await handler({ mongo: { Models }, appHtmlCache: { html: SPA }, params: { agentId: 'a'.repeat(24) }, get: () => 'app-proxy.livedemo.ai' }, res)
   return body
 }
 
