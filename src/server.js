@@ -39,13 +39,17 @@ async function setupMongo(req, res, next) {
 let appHtmlCache = {
   html: ''
 }
+let appHtmlInflight = null
+let draining = false
+let shuttingDown = false
 
-const fetchAppIndexHtml = function() {
+const fetchAppIndexHtml = function () {
   return axios.get(ENV.SERVER_URL, {
-      headers: {
-        'Accept': 'text/html'
-      }
-    })
+    headers: {
+      'Accept': 'text/html'
+    },
+    timeout: 10000
+  })
     .then((res) => {
 
       return res.data
@@ -54,30 +58,46 @@ const fetchAppIndexHtml = function() {
 
 }
 
+// One in-flight fetch shared by the warmer and request path.
+function ensureAppCache() {
+  if (appHtmlCache.html) {
 
-async function setupCacheInternal() {
-  if (!appHtmlCache.html) {
-    await fetchAppIndexHtml()
+    return Promise.resolve()
+  }
+  
+  if (!appHtmlInflight) {
+    appHtmlInflight = fetchAppIndexHtml()
       .then(htmlData => {
-        appHtmlCache.html = htmlData
+        if (!htmlData) throw new Error('empty app index.html')
 
+        appHtmlCache.html = htmlData
         console.log('Cached app index.html')
+      })
+      .catch(err => {
+        appHtmlInflight = null
+        console.error('Failed to cache app index.html', err.message)
+        throw err
       })
   }
 
+  return appHtmlInflight
 }
 
-setupCacheInternal()
+// ponytail: fixed 2s retry until the first successful fetch. Readiness stays
+// false until then, so a dead upstream cannot take this pod into rotation.
+// Upgrade path: backoff if SERVER_URL is down for a long time.
+function warmAppCache() {
+  ensureAppCache().catch(() => {
+    setTimeout(warmAppCache, 2000)
+  })
+}
+
+warmAppCache()
 
 async function setupCache(req, res, next) {
 
   if (!appHtmlCache.html) {
-    await fetchAppIndexHtml()
-      .then(htmlData => {
-        appHtmlCache.html = htmlData
-
-        console.log('Cached app index.html')
-      })
+    await ensureAppCache()
   }
 
   req.appHtmlCache = appHtmlCache
@@ -143,12 +163,25 @@ app.get('/healthz', (req, res) => {
   res.send()
 })
 
+// Readiness for the rollout probe and the GCE ingress health check.
+// Liveness (/healthz) stays independent: a Mongo or upstream blip must not restart the pod.
+// ponytail: mongo is not required here. Most traffic is the upstream proxy, and failing
+// ready on a db blip would drain every GCE backend. Page routes still connect on demand.
+app.get('/readyz', (req, res) => {
+  if (draining || !appHtmlCache.html) {
+    res.status(503).send('not ready')
+    return
+  }
+
+  res.status(200).send('ready')
+})
+
 
 
 function corsMiddleware(req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-    next();
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
 }
 
 
@@ -156,7 +189,7 @@ app.get('/livedemos/:storyId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDe
 app.get('/livedemos/:storyId([a-f0-9]{24})/links/:linkId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDemoWithLinkPageHandler)
 app.get('/agents/:agentId([a-f0-9]{24})', [setupMongo, setupCache], getAgentPageHandler)
 
-app.use('*', function(req, res) {
+app.use('*', function (req, res) {
   const url = ENV.SERVER_URL + req.originalUrl
 
   res.set('Origin-Agent-Cluster', '?0')
@@ -189,10 +222,29 @@ app.use('*', function(req, res) {
 
 const http = require('http').Server(app)
 
+function shutdown() {
+  if (shuttingDown) return
+
+  shuttingDown = true
+  draining = true
+  http.close(() => process.exit(0))
+  // preStop already waited for the load balancer; force-exit if a connection hangs
+  setTimeout(() => process.exit(0), 20000)
+}
+
+process.on('SIGTERM', shutdown)
+// preStop sets this before the grace sleep, so /readyz fails and the load balancer drops the pod
+// while existing requests still finish
+process.on('SIGUSR2', () => {
+  draining = true
+})
+
 async function setup() {
 
-  http.listen(3055, () => {
-    console.log('App-proxy server started')
+  const port = process.env.PROXY_PORT ? Number(process.env.PROXY_PORT) : 3055
+
+  http.listen(port, () => {
+    console.log('App-proxy server started on ' + http.address().port)
   })
 }
 
