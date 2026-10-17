@@ -3,7 +3,9 @@ const express = require('express')
 const bodyParser = require('body-parser')
 
 const axios = require('axios')
+const path = require('path')
 
+const createAssetCache = require('./helpers/assetCache')
 const getLiveDemoPageHandler = require('./handlers/getLiveDemoPage')
 const getLiveDemoWithLinkPageHandler = require('./handlers/getLiveDemoWithLinkPage')
 const getAgentPageHandler = require('./handlers/getAgentPage')
@@ -58,6 +60,26 @@ const fetchAppIndexHtml = function () {
 
 }
 
+// Resolves null for anything but a real asset: S3/CloudFront answer missing files with the SPA html.
+const fetchAsset = function (assetPath) {
+  return axios.get(ENV.SERVER_URL + assetPath, {
+    responseType: 'arraybuffer',
+    timeout: 30000
+  })
+    .then((res) => {
+      const contentType = res.headers['content-type'] || ''
+
+      return contentType.includes('text/html') ? null : { data: res.data, contentType }
+    })
+    .catch(() => null)
+}
+
+const assetCache = createAssetCache(process.env.APP_PROXY_CACHE_DIR || '/data/app-proxy/cache', fetchAsset)
+
+const registerAppBuild = function (html) {
+  assetCache.setBuild(html).catch(err => console.error('Failed to cache app build', err.message))
+}
+
 // One in-flight fetch shared by the warmer and request path.
 function ensureAppCache() {
   if (appHtmlCache.html) {
@@ -72,6 +94,7 @@ function ensureAppCache() {
 
         appHtmlCache.html = htmlData
         console.log('Cached app index.html')
+        registerAppBuild(htmlData)
       })
       .catch(err => {
         appHtmlInflight = null
@@ -188,6 +211,68 @@ function corsMiddleware(req, res, next) {
 app.get('/livedemos/:storyId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDemoPageHandler)
 app.get('/livedemos/:storyId([a-f0-9]{24})/links/:linkId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDemoWithLinkPageHandler)
 app.get('/agents/:agentId([a-f0-9]{24})', [setupMongo, setupCache], getAgentPageHandler)
+
+// Loopback only: web-app deploy-prod.sh calls this in every pod via kubectl exec after the S3 sync.
+// Ingress traffic arrives from the load balancer address, so it never matches.
+app.post('/internal/refresh-app-cache', (req, res) => {
+  if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) {
+
+    res.status(404).send()
+    return
+  }
+
+  fetchAppIndexHtml()
+    .then(async (htmlData) => {
+      if (!htmlData) throw new Error('empty app index.html')
+
+      const changed = htmlData !== appHtmlCache.html
+      appHtmlCache.html = htmlData
+      await assetCache.setBuild(htmlData)
+      console.log(changed ? 'Refreshed app index.html' : 'App index.html unchanged')
+      res.send(changed ? 'refreshed\n' : 'unchanged\n')
+    })
+    .catch((err) => {
+      console.error('Failed to refresh app index.html', err.message)
+      res.status(502).send(err.message + '\n')
+    })
+})
+
+app.get('/assets/*', (req, res, next) => {
+  const assetPath = path.posix.normalize(req.path)
+
+  if (assetPath.includes('..') || !/^\/assets\/[\w./-]+$/.test(assetPath)) {
+
+    next()
+    return
+  }
+
+  assetCache.find(assetPath)
+    .then((file) => {
+      res.set('Origin-Agent-Cluster', '?0')
+
+      if (file) {
+
+        res.sendFile(file, { maxAge: '1y', immutable: true })
+        return
+      }
+
+      return fetchAsset(assetPath).then((asset) => {
+        if (!asset) {
+
+          next()
+          return
+        }
+
+        assetCache.save(assetPath, asset.data).catch(err => console.error('Failed to cache asset', assetPath, err.message))
+        res.set({
+          'Content-Type': asset.contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        })
+        res.send(asset.data)
+      })
+    })
+    .catch(() => next())
+})
 
 app.use('*', function (req, res) {
   const url = ENV.SERVER_URL + req.originalUrl
