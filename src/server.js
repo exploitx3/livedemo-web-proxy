@@ -208,6 +208,13 @@ function corsMiddleware(req, res, next) {
 }
 
 
+// Public demo/agent pages are customer content embedded on customer sites: out of search on their own,
+// but their content counts for the page that embeds them (same policy as story-api)
+app.use(['/livedemos', '/agents'], (req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex, indexifembedded')
+  next()
+})
+
 app.get('/livedemos/:storyId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDemoPageHandler)
 app.get('/livedemos/:storyId([a-f0-9]{24})/links/:linkId([a-f0-9]{24})', [setupMongo, setupCache], getLiveDemoWithLinkPageHandler)
 app.get('/agents/:agentId([a-f0-9]{24})', [setupMongo, setupCache], getAgentPageHandler)

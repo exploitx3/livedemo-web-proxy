@@ -21,6 +21,15 @@ function status(port, route) {
     })
 }
 
+function robotsHeader(port, route) {
+    return new Promise((resolve, reject) => {
+        http.get({ hostname: '127.0.0.1', port, path: route, timeout: 1000 }, (res) => {
+            res.resume()
+            resolve(res.headers['x-robots-tag'])
+        }).on('error', reject)
+    })
+}
+
 async function waitFor(port, route, expected) {
     let last = 'no response'
 
@@ -120,6 +129,9 @@ function listenUpstream() {
     try {
         await waitFor(warmPort, '/healthz', 200)
         await waitFor(warmPort, '/readyz', 200)
+        assert.strictEqual(await robotsHeader(warmPort, '/livedemos/x/assets/a.js'), 'noindex, indexifembedded', 'demo pages are noindex, indexifembedded')
+        assert.strictEqual(await robotsHeader(warmPort, '/agents/x'), 'noindex, indexifembedded', 'agent pages are noindex, indexifembedded')
+        assert.strictEqual(await robotsHeader(warmPort, '/other'), undefined, 'other paths get no robots header')
         process.kill(warm.pid, 'SIGUSR2')
         await waitFor(warmPort, '/readyz', 503)
         const alive = await status(warmPort, '/healthz')
